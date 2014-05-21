@@ -6,7 +6,7 @@ describe 'DB', ->
     process.mongo = new mongodb.Mongo 'localhost'
     process.db = new mongodb.DB process.mongo, 'github'
 
-  it 'should have the basic interface', ->
+  it 'should work', ->
     db = process.db
 
     assert db.getMongo()
@@ -14,3 +14,5 @@ describe 'DB', ->
     assert db.getSisterDB('admin')
     assert.equal db.getName(), 'github'
     assert db.getCollection('users')
+
+    assert db.stats()
