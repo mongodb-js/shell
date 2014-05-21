@@ -1,0 +1,5 @@
+{
+  "name": "mongodb-js",
+  "description": "The JS api mongo shell provides, with hooks for running in multiple contexts",
+  "version": "0.0.1"
+}
