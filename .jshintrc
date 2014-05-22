@@ -15,5 +15,6 @@
   "trailing": true,
   "boss": true,
   "loopfunc": true,
-  "undef": true
+  "undef": true,
+  "esnext": true
 }
