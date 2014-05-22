@@ -4,7 +4,9 @@
 // `Cursor` and `Mongo` are mostly like binary add-on's: all of their
 // functionality is in C++. Here we can just provide stubs, which is
 // that strategy to make this work.
-var assert = require('assert');
+var assert = require('assert'),
+  util = require('util');
+
 assert.eq = assert.equal;
 // @see `mongo/db/dbmessage.cpp`
 function Message() {
@@ -58,6 +60,7 @@ ClientCursor.prototype.next = function (fn) {
 };
 // If true, safe to call next().  Requests more from server if necessary.
 ClientCursor.prototype.more = function (fn) {
+  console.log('cursor:more');
   this.requestMore(function (err) {
     if (err)
       return fn(err);
@@ -66,11 +69,13 @@ ClientCursor.prototype.more = function (fn) {
 };
 // Oh hey!  we found some networking!
 ClientCursor.prototype.requestMore = function (fn) {
+  console.log('cursor:requestMore');
   process.nextTick(function () {
     fn(null, {});
   });
 };
 ClientCursor.prototype.hasNext = function () {
+  console.log('cursor:hasNext');
   return true;
 };
 ClientCursor.prototype.objsLeftInBatch = function () {
@@ -88,6 +93,29 @@ ClientCursor.prototype.moreInCurrentBatch = function () {
 };
 ClientCursor.prototype.readOnly = function () {
 };
+
+function MockCursor(){}
+util.inherits(MockCursor, ClientCursor);
+MockCursor.prototype.use = function(n, data){
+  this.consumed = false;
+
+  this.objsLeftInBatch = function(){
+    return this.consumed ? 0 : n;
+  }.bind(this);
+
+  this.hasNext = function(){
+    return this.consumed ? true : false;
+  }.bind(this);
+
+  this.next = function(){
+    if(!this.consumed){
+      this.consumed = true;
+      return data;
+    }
+    throw new Error('DBClientCursor next() called but more() is false');
+  }.bind(this);
+  return this;
+};
 // And that's it for cpp land.  From here on out we're in JS land and in
 // order to do any of the above, we'll have to cross the process boundary
 // so we should consider all of those operations asynchronous!
@@ -101,10 +129,89 @@ ClientCursor.prototype.readOnly = function () {
 function Mongo(host) {
   this.host = host;
 }
-/* jshint ignore:start */
-Mongo.prototype.find = function (ns, query, fields, limit, skip, batchSize, options) {
-  throw new Error('find not implemented');
+
+var colStatsData = {
+  "ns" : "github.users",
+  "count" : 29,
+  "size" : 2160,
+  "avgObjSize" : 74,
+  "storageSize" : 8192,
+  "numExtents" : 1,
+  "nindexes" : 1,
+  "lastExtentSize" : 8192,
+  "paddingFactor" : 1,
+  "systemFlags" : 1,
+  "userFlags" : 1,
+  "totalIndexSize" : 8176,
+  "indexSizes" : {
+    "_id_" : 8176
+  },
+  "ok" : 1
 };
+
+Mongo.prototype.find = function (ns, query, fields, limit, skip, batchSize, options) {
+  console.log('mongo:find', ns, query, fields, limit, skip, batchSize, options);
+  // If in the shell we run
+  // ```
+  // db.getMongo().getDB('github').getCollection('users').stats();
+  // ```
+  //
+  // `Mongo.prototype.find` gets the args:
+  // ```
+  // github.$cmd { collstats: 'users', scale: undefined } undefined -1 0 0 4
+  // ```
+  // So we can just run this directly:
+  // ```
+  // db.getMongo().find('github.$cmd', { collstats: 'users', scale: undefined }, undefined, -1, 0, 0, 4)
+  // ```
+  //
+  // Which gives us the `ClientCursor` instance:
+  // ```
+  // {
+  //   "next" : function next() { [native code] },
+  //   "hasNext" : function hasNext() { [native code] },
+  //   "objsLeftInBatch" : function objsLeftInBatch() { [native code] },
+  //   "readOnly" : function readOnly() { [native code] }
+  // }
+  // ```
+  // `cur.readOnly()` is a setter only operation that returns:
+  // ```
+  // {
+  //   "_ro" : true,
+  //   "next" : function next() { [native code] },
+  //   "hasNext" : function hasNext() { [native code] },
+  //   "objsLeftInBatch" : function objsLeftInBatch() { [native code] },
+  //   "readOnly" : function readOnly() { [native code] }
+  // }
+  // > cur.objsLeftInBatch()
+  // 1
+  // > cur.hasNext()
+  // true
+  // > cur.next()
+  // {
+  //   "ns" : "github.users",
+  //   "count" : 29,
+  //   "size" : 2160,
+  //   "avgObjSize" : 74,
+  //   "storageSize" : 8192,
+  //   "numExtents" : 1,
+  //   "nindexes" : 1,
+  //   "lastExtentSize" : 8192,
+  //   "paddingFactor" : 1,
+  //   "systemFlags" : 1,
+  //   "userFlags" : 1,
+  //   "totalIndexSize" : 8176,
+  //   "indexSizes" : {
+  //     "_id_" : 8176
+  //   },
+  //   "ok" : 1
+  // }
+  // ```
+  var ghColStatsCursor = new MockCursor().use(1, colStatsData);
+  console.log('made cursor', ghColStatsCursor);
+  return ghColStatsCursor;
+};
+/* jshint ignore:start */
 Mongo.prototype.insert = function (ns, obj) {
   throw new Error('insert not implemented');
 };
@@ -155,6 +262,7 @@ DB.prototype._dbCommand = DB.prototype.runCommand = function (obj) {
     n[obj] = 1;
     obj = n;
   }
+  console.log('db.runCommand ->', obj);
   return this.getCollection('$cmd').findOne(obj);
 };
 DB.prototype.adminCommand = function (obj) {
@@ -193,9 +301,13 @@ DBCollection.prototype.find = function (query, fields, limit, skip, batchSize, o
 };
 DBCollection.prototype.findOne = function (query, fields, options) {
   var cursor = this.find(query, fields, -1, 0, 0, options);
-  if (!cursor.hasNext())
+
+  if (!cursor.hasNext()){
+    console.log('findOne ->', 'cursor does not have next');
     return null;
+  }
   var ret = cursor.next();
+  console.log('findOne ->', ret);
   if (cursor.hasNext())
     throw new Error('findOne has more than 1 result!');
   if (ret.$err)
@@ -221,8 +333,7 @@ DBCollection.prototype._massageObject = function (q) {
 };
 DBCollection.prototype.getQueryOptions = function () {
   var options = 0;
-  if (this.getSlaveOk())
-    options |= 4;
+  options |= 4;
   return options;
 };
 DBCollection.prototype.stats = function (scale) {
@@ -276,6 +387,7 @@ DBQuery.prototype.next = function () {
   this._numReturned++;
   return ret;
 };
+
 var _mongo = new Mongo();
 var db = _mongo.getDB('github');
-db.getCollection('users').stats();
+assert.deepEqual(db.getCollection('users').stats(), colStatsData, 'no dice :(');
