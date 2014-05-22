@@ -4,16 +4,148 @@
 // `Cursor` and `Mongo` are mostly like binary add-on's: all of their
 // functionality is in C++. Here we can just provide stubs, which is
 // that strategy to make this work.
-var assert = require('assert'),
-  print = console.log;
+var assert = require('assert');
 
 assert.eq = assert.equal;
 
-function Cursor(){}
-Cursor.prototype.next = function(){};
-Cursor.prototype.hasNext = function(){};
-Cursor.prototype.objsLeftInBatch = function(){};
-Cursor.prototype.readOnly = function(){};
+// @see `mongo/db/dbmessage.cpp`
+function Message(){}
+
+function Batch(){
+  this.message = new Message();
+  this.nReturned = undefined;
+  this.pos = undefined;
+  this.data = undefined;
+}
+// @type {Message}
+Batch.prototype.m = {};
+// @type {Number}
+Batch.prototype.nReturned = -1;
+// @type {Number}
+Batch.prototype.pos = -1;
+// @type {Buffer}
+Batch.prototype.data = null;
+
+// A stub of the cursor mongo provides via c++.
+// At the end of the day, this logic actually lives in `client/dbclientcursor.cpp`.
+function ClientCursor(ns, query, nToReturn, nToSkip, fieldsToReturn, queryOptions){
+  this.ns = ns;
+  this.query = query;
+  this.nToReturn = nToReturn;
+  this.nToSkip = nToSkip;
+  this.fieldsToReturn = fieldsToReturn;
+  this.queryOptions = queryOptions;
+}
+
+// @type {String}
+ClientCursor.prototype.ns = undefined;
+
+// @type {Object}
+ClientCursor.prototype.query = undefined;
+
+// @type {Number}
+ClientCursor.prototype.nToReturn = undefined;
+
+// @type {Number}
+ClientCursor.prototype.nToSkip = undefined;
+
+// @type {Object}
+ClientCursor.prototype.fieldsToReturn = undefined;
+
+// @type {Object}
+ClientCursor.prototype.queryOptions = undefined;
+
+// @type {Number}
+ClientCursor.prototype.cursorId = -1;
+
+// @type {Object}
+ClientCursor.prototype.batch = {};
+
+// stack< BSONObj > _putBack;
+ClientCursor.prototype._putBack = [];
+
+ClientCursor.prototype.next = function(fn){
+  if(this._putBack.length > 0){
+    return this._putBack.pop();
+  }
+  this.batch.pos++;
+  var obj = this.batch.read();
+  this.batch.data += obj.length;
+  process.nextTick(function(){
+    fn(null, obj);
+  });
+};
+
+// If true, safe to call next().  Requests more from server if necessary.
+ClientCursor.prototype.more = function(fn){
+  if(this._putBack.length > 0) return true;
+  if(this.haveLimit && this.batch.pos >= this.nToReturn) return false;
+  if(this.batch.pos < this.batch.nReturned) return true;
+  if(this.cursorId === 0) return false;
+
+  this.requestMore(function(err){
+    if(err) return fn(err);
+
+    fn(null, this.batch.pos < this.batch.nReturned);
+  }.bind(this));
+};
+
+// Oh hey!  we found some networking!
+ClientCursor.prototype.requestMore = function(fn){
+  process.nextTick(function(){
+    fn(null, {});
+  });
+  // verify( cursorId && batch.pos == batch.nReturned );
+  // if (haveLimit) {
+  //   nToReturn -= batch.nReturned;
+  //   verify(nToReturn > 0);
+  // }
+  // BufBuilder b;
+  // b.appendNum(opts);
+  // b.appendStr(ns);
+  // b.appendNum(nextBatchSize());
+  // b.appendNum(cursorId);
+
+  // Message toSend;
+  // toSend.setData(dbGetMore, b.buf(), b.len());
+  // auto_ptr<Message> response(new Message());
+
+  // if ( _client ) {
+  //   _client->call( toSend, *response );
+  //   this->batch.m = response;
+  //   dataReceived();
+  // }
+  // else {
+  //   verify( _scopedHost.size() );
+  //   ScopedDbConnection conn(_scopedHost);
+  //   conn->call( toSend , *response );
+  //   _client = conn.get();
+  //   this->batch.m = response;
+  //   dataReceived();
+  //   _client = 0;
+  //   conn.done();
+  // }
+};
+
+ClientCursor.prototype.hasNext = function(){};
+ClientCursor.prototype.objsLeftInBatch = function(){
+  return this._putBack.length + this.batch.nReturned - this.batch.pos;
+};
+
+// restore an object previously returned by next() to the cursor.
+// @return {void}
+// @api private
+ClientCursor.prototype.putBack = function(o) {
+  this._putBack.push(o.getOwned());
+};
+
+// @return {Boolean}
+// @api private
+ClientCursor.prototype.moreInCurrentBatch = function() {
+  return this.objsLeftInBatch() > 0;
+};
+
+ClientCursor.prototype.readOnly = function(){};
 
 // Constructor called by engine_v8.cpp and then sets the global `db` var
 // using it.
@@ -23,76 +155,48 @@ function Mongo(host){
   this.host = host;
 }
 
-// native add-ons
-Mongo.prototype.find = function(){
-  return new Cursor();
+/* jshint ignore:start */
+Mongo.prototype.find = function (ns, query, fields, limit, skip, batchSize, options) {
+  throw new Error('find not implemented');
 };
-Mongo.prototype.insert = function(){};
-Mongo.prototype.remove = function(){};
-Mongo.prototype.update = function(){};
-Mongo.prototype.auth = function(){};
-Mongo.prototype.logout = function(){};
-Mongo.prototype.cursorFromId = function(){};
+Mongo.prototype.insert = function (ns, obj) {
+  throw new Error('insert not implemented');
+};
+Mongo.prototype.remove = function (ns, pattern) {
+  throw new Error('remove not implemented');
+};
+Mongo.prototype.update = function (ns, query, obj, upsert) {
+  throw new Error('update not implemented');
+};
+Mongo.prototype.auth = function(db, user, password){
+  throw new Error('auth not implemented');
+};
+Mongo.prototype.logout = function(db){
+  throw new Error('logout not implemented');
+};
+Mongo.prototype.cursorFromId = function(ns, cursorId, batchSize){
+  throw new Error('cursorFromId not implemented');
+};
+/* jshint ignore:end */
 
-// oh c++ developers...
 Mongo.prototype.getDB = function( name ){
   return new DB(this, name);
 };
 
-Mongo.prototype.setSlaveOk = function( value ) {
-  if( value === undefined ) value = true;
-  this.slaveOk = value;
-};
-
-Mongo.prototype.getSlaveOk = function() {
-  return this.slaveOk || false;
-};
-
-Mongo.prototype.adminCommand = function( cmd ){
-  return this.getDB("admin").runCommand(cmd);
-};
-
-Mongo.prototype.getReadPrefMode = function () {
-    return this._readPrefMode;
-};
-
-Mongo.prototype.getReadPrefTagSet = function () {
-    return this._readPrefTagSet;
-};
-
-function DB( mongo , name ){
+function DB(mongo, name){
   this._mongo = mongo;
   this._name = name;
 }
-DB.prototype.getMongo = function(){
-  assert( this._mongo , "why no mongo!" );
-  return this._mongo;
-};
-
-DB.prototype.setSlaveOk = function( value ) {
-    if( value == undefined ) value = true;
-    this._slaveOk = value;
-}
-
-DB.prototype.getSlaveOk = function() {
-    if (this._slaveOk != undefined) return this._slaveOk;
-    return this._mongo.getSlaveOk();
-}
-
-DB.prototype.getSisterDB = DB.prototype.getSiblingDB = function( name ){
-  return this.getMongo().getDB( name );
-};
-
-DB.prototype.getName = function(){
-  return this._name;
-};
+DB.prototype.getMongo = function(){return this._mongo;};
+DB.prototype.getSisterDB = DB.prototype.getSiblingDB = function(name){return this.getMongo().getDB(name);};
+DB.prototype.getName = function(){return this._name;};
 
 DB.prototype.stats = function(scale){
   return this.runCommand( { dbstats : 1 , scale : scale } );
 };
 
 DB.prototype.getCollection = function( name ){
-  return new DBCollection( this._mongo , this , name , this._name + "." + name );
+  return new DBCollection(this._mongo , this , name , this._name + "." + name );
 };
 
 DB.prototype._dbCommand = DB.prototype.runCommand = function( obj ){
@@ -105,8 +209,7 @@ DB.prototype._dbCommand = DB.prototype.runCommand = function( obj ){
 };
 
 DB.prototype.adminCommand = function( obj ){
-  if ( this._name === "admin" )
-    return this.runCommand( obj );
+  if ( this._name === "admin" ) return this.runCommand( obj );
   return this.getSiblingDB( "admin" ).runCommand( obj );
 };
 
