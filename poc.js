@@ -104,7 +104,7 @@ MockCursor.prototype.use = function(n, data){
   }.bind(this);
 
   this.hasNext = function(){
-    return this.consumed ? true : false;
+    return this.consumed ? false : true;
   }.bind(this);
 
   this.next = function(){
@@ -113,6 +113,10 @@ MockCursor.prototype.use = function(n, data){
       return data;
     }
     throw new Error('DBClientCursor next() called but more() is false');
+  }.bind(this);
+
+  this.toJSON = function(){
+    return {consumed: this.consumed};
   }.bind(this);
   return this;
 };
@@ -301,7 +305,7 @@ DBCollection.prototype.find = function (query, fields, limit, skip, batchSize, o
 };
 DBCollection.prototype.findOne = function (query, fields, options) {
   var cursor = this.find(query, fields, -1, 0, 0, options);
-
+  console.log('got cursor', cursor.toJSON());
   if (!cursor.hasNext()){
     console.log('findOne ->', 'cursor does not have next');
     return null;
@@ -360,9 +364,12 @@ function DBQuery(mongo, db, collection, ns, query, fields, limit, skip, batchSiz
 }
 DBQuery.prototype.hasNext = function () {
   this._exec();
-  if (this._limit > 0 && this._cursorSeen >= this._limit)
+  if (this._limit > 0 && this._cursorSeen >= this._limit){
+    console.log('dbquery hasNext -> false 1');
     return false;
+  }
   var o = this._cursor.hasNext();
+  console.log('dbquery cursor hasNext -> ', o);
   return o;
 };
 DBQuery.prototype._exec = function () {
@@ -388,6 +395,10 @@ DBQuery.prototype.next = function () {
   return ret;
 };
 
+DBQuery.prototype.toJSON = function () {
+  return this;
+};
+
 var _mongo = new Mongo();
 var db = _mongo.getDB('github');
-assert.deepEqual(db.getCollection('users').stats(), colStatsData, 'no dice :(');
+assert.deepEqual(db.getCollection('users').stats(), colStatsData);
