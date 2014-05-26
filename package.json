@@ -1,5 +1,12 @@
 {
   "name": "mongodb-js",
   "description": "The JS api mongo shell provides, with hooks for running in multiple contexts",
-  "version": "0.0.1"
+  "version": "0.0.1",
+  "scripts": {
+    "test": "mocha"
+  },
+  "devDependencies": {
+    "coffee-script": "^1.7.1",
+    "mocha": "^1.17.1"
+  }
 }
