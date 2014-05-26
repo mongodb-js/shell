@@ -470,4 +470,7 @@ DBQuery.prototype.toJSON = function () {
 var _mongo = new Mongo();
 var db = _mongo.getDB('github');
 assert.deepEqual(yield db.getCollection('users').stats(), colStatsData);
+console.log('and again?');
+var chunks = yield db.getCollection('users').findOne();
+console.log('chunks are', chunks);
 })();
