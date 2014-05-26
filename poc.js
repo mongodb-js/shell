@@ -98,42 +98,6 @@ ClientCursor.prototype.moreInCurrentBatch = function () {
 ClientCursor.prototype.readOnly = function () {
 };
 
-// var fetchFromBackend = function(res){
-//   return function(fn){
-//     process.nextTick(function(){
-//       fn(null, res);
-//     });
-//   };
-// };
-
-function MockCursor(){}
-util.inherits(MockCursor, ClientCursor);
-MockCursor.prototype.use = function *(n, res){
-  var self = this;
-  self.consumed = false;
-
-  self.objsLeftInBatch = function(){
-    return self.consumed ? 0 : n;
-  };
-
-  self.hasNext = function *(){
-    return (self.consumed ? false : true);
-  };
-
-  self.next = function *(){
-    if(!self.consumed){
-      self.consumed = true;
-      return res;
-    }
-    throw new Error('DBClientCursor next() called but more() is false');
-  };
-
-  self.toJSON = function(){
-    return {consumed: self.consumed};
-  };
-  return self;
-};
-
 // And that's it for cpp land.  From here on out we're in JS land and in
 // order to do any of the above, we'll have to cross the process boundary
 // so we should consider all of those operations asynchronous!
@@ -146,55 +110,41 @@ MockCursor.prototype.use = function *(n, res){
 // Constructor called by engine_v8.cpp and then sets the global `db` var using it.
 function Mongo(host) {
   this.host = host;
+  this.backend = {};
 }
-
-var read = function(src){
-  return function(fn){
-    fs.readFile(src, 'utf-8', function(err, data){
-      if(err) return fn(err);
-      return fn(null, JSON.parse(data));
-    });
-  };
-};
-
 Mongo.prototype.find = function *(ns, query, fields, limit, skip, batchSize, options) {
-  var req = {
-      ns: ns,
-      query: JSON.stringify(query),
-      fields: JSON.stringify(fields),
-      limit: limit,
-      skip: skip,
-      batchSize: batchSize,
-      options: options
-    },
-    id = require('crypto').createHash('sha1').update(JSON.stringify(req)).digest('hex');
-  debug('mongo:find', req, id, qs.stringify(req));
-  var data = yield read('./poc_fixtures.json');
-  return yield new MockCursor().use(1, data[qs.stringify(req)]);
+  if(!this.backend.find) throw new Error('find not implemented');
+  return yield this.backend.find(ns, query, fields, limit, skip, batchSize, options);
 };
-/* jshint ignore:start */
-Mongo.prototype.insert = function (ns, obj) {
-  throw new Error('insert not implemented');
+Mongo.prototype.insert = function *(ns, obj) {
+  if(!this.backend.insert) throw new Error('insert not implemented');
+  return yield this.backend.insert(ns, obj);
 };
-Mongo.prototype.remove = function (ns, pattern) {
-  throw new Error('remove not implemented');
+Mongo.prototype.remove = function *(ns, pattern) {
+  if(!this.backend.remove) throw new Error('remove not implemented');
+  return yield this.backend.remove(ns, pattern);
 };
-Mongo.prototype.update = function (ns, query, obj, upsert) {
-  throw new Error('update not implemented');
+Mongo.prototype.update = function *(ns, query, obj, upsert) {
+  if(!this.backend.update) throw new Error('update not implemented');
+  return yield this.backend.update(ns, query, obj, upsert);
 };
-Mongo.prototype.auth = function (db, user, password) {
-  throw new Error('auth not implemented');
+Mongo.prototype.auth = function *(db, user, password) {
+  if(!this.backend.auth) throw new Error('auth not implemented');
+  return yield this.backend.auth(db, user, password);
 };
-Mongo.prototype.logout = function (db) {
-  throw new Error('logout not implemented');
+Mongo.prototype.logout = function *(db) {
+  if(!this.backend.logout) throw new Error('logout not implemented');
+  return yield this.backend.logout(db);
 };
-Mongo.prototype.cursorFromId = function (ns, cursorId, batchSize) {
-  throw new Error('cursorFromId not implemented');
+Mongo.prototype.cursorFromId = function *(ns, cursorId, batchSize) {
+  if(!this.backend.cursorFromId) throw new Error('cursorFromId not implemented');
+  return yield this.backend.cursorFromId(ns, cursorId, batchSize);
 };
-/* jshint ignore:end */
 Mongo.prototype.getDB = function (name) {
   return new DB(this, name);
 };
+
+
 function DB(mongo, name) {
   this._mongo = mongo;
   this._name = name;
@@ -231,10 +181,10 @@ DB.prototype._dbCommand = DB.prototype.runCommand = function *(obj) {
   debug('db.runCommand -> ', 'got res', res);
   return res;
 };
-DB.prototype.adminCommand = function (obj) {
+DB.prototype.adminCommand = function *(obj) {
   if (this._name === 'admin')
-    return this.runCommand(obj);
-  return this.getSiblingDB('admin').runCommand(obj);
+    return yield this.runCommand(obj);
+  return yield this.getSiblingDB('admin').runCommand(obj);
 };
 function DBCollection(mongo, db, shortName, fullName) {
   this._mongo = mongo;
@@ -245,6 +195,8 @@ function DBCollection(mongo, db, shortName, fullName) {
 DBCollection.prototype.getName = function () {
   return this._shortName;
 };
+// @todo: when mutating from kernel, scan help messages and insert as comments
+// for each function.
 DBCollection.prototype.help = function () {
   var shortName = this.getName();
   debug('DBCollection help');
@@ -264,25 +216,27 @@ DBCollection.prototype.getDB = function () {
 DBCollection.prototype.find = function (query, fields, limit, skip, batchSize, options) {
   var self = this;
 
-  var cursor = new DBQuery(self._mongo, self._db, self, self._fullName, self._massageObject(query), fields, limit, skip, batchSize, options || self.getQueryOptions());
+  var cursor = new DBQuery(self._mongo, self._db, self, self._fullName,
+    self._massageObject(query), fields, limit, skip,
+    batchSize, options || self.getQueryOptions());
   return cursor;
 };
 DBCollection.prototype.findOne = function *(query, fields, options) {
   var self = this;
   debug('findOne ->', 'get cursor');
   var cursor = self.find(query, fields, -1, 0, 0, options);
-  debug('findOne ->', 'got cursor', cursor.toJSON());
-  var hasNext = yield cursor.hasNext();
-  if (!hasNext){
+  if (!(yield cursor.hasNext())){
     debug('findOne ->', 'cursor does not have next');
     return null;
   }
   var ret = yield cursor.next();
   debug('findOne ->', 'returning!', ret);
-  // if (cursor.hasNext())
-  //   throw new Error('findOne has more than 1 result!');
-  // if (ret.$err)
-  //   throw new Error(JSON.stringify(ret));
+  if ((yield cursor.hasNext()) === true){
+    throw new Error('findOne has more than 1 result!');
+  }
+  if (ret.$err){
+    throw new Error(JSON.stringify(ret));
+  }
   return ret;
 };
 DBCollection.prototype._massageObject = function (q) {
@@ -351,13 +305,13 @@ DBQuery.prototype._exec = function *() {
 
   assert.eq(0, self._numReturned);
   debug('calling _mongo.find');
-  var cur = yield self._mongo.find(self._ns, self._query, self._fields, self._limit, self._skip, self._batchSize, self._options);
+  var cur = yield self._mongo.find(self._ns, self._query, self._fields,
+    self._limit, self._skip, self._batchSize, self._options);
   debug('got new cursor', cur);
   self._cursor = cur;
   self._cursorSeen = 0;
   return self._cursor;
 };
-
 DBQuery.prototype.next = function *() {
   var self = this;
   yield self._exec();
@@ -377,6 +331,62 @@ DBQuery.prototype.toJSON = function () {
 };
 
 var _mongo = new Mongo();
+
+// A one time use cursor.
+function MockCursor(){}
+util.inherits(MockCursor, ClientCursor);
+MockCursor.prototype.use = function *(n, res){
+  var self = this;
+  self.consumed = false;
+
+  self.objsLeftInBatch = function(){return self.consumed ? 0 : n;};
+
+  self.hasNext = function *(){return (self.consumed ? false : true);};
+
+  self.next = function *(){
+    if(!self.consumed){
+      self.consumed = true;
+      return res;
+    }
+    throw new Error('DBClientCursor next() called but more() is false');
+  };
+  return self;
+};
+
+var nextTickThunk = function(res){
+  return function(fn){
+    process.nextTick(function(){
+      fn(null, res);
+    });
+  };
+};
+
+var read = function(src){
+  return function(fn){
+    fs.readFile(src, 'utf-8', function(err, buf){
+      if(err) return fn(err);
+      fn(null, JSON.parse(buf));
+    });
+  };
+};
+// Use our little fixtures backend.
+_mongo.backend = {
+  find: function *(ns, query, fields, limit, skip, batchSize, options) {
+    var req = {
+        ns: ns,
+        query: JSON.stringify(query),
+        fields: JSON.stringify(fields),
+        limit: limit,
+        skip: skip,
+        batchSize: batchSize,
+        options: options
+      };
+    debug('mongo:find', qs.stringify(req));
+    var data = yield read('./poc_fixtures.json');
+    return yield new MockCursor().use(1, data[qs.stringify(req)]);
+  }
+};
+
 var db = _mongo.getDB('github');
 console.log('testing fixtures...');
 assert.deepEqual(yield db.getCollection('users').stats(), {
