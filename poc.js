@@ -5,11 +5,10 @@
 // functionality is in C++. Here we can just provide stubs, which is
 // that strategy to make this work.
 var assert = require('assert'),
-  util = require('util');
+  util = require('util'),
+  debug = require('debug')('mongodb');
 
-var co = require('co');
-
-co(function *(){
+require('co')(function *(){
 assert.eq = assert.equal;
 // @see `mongo/db/dbmessage.cpp`
 function Message() {
@@ -63,7 +62,7 @@ ClientCursor.prototype.next = function (fn) {
 };
 // If true, safe to call next().  Requests more from server if necessary.
 ClientCursor.prototype.more = function (fn) {
-  console.log('cursor:more');
+  debug('cursor:more');
   this.requestMore(function (err) {
     if (err)
       return fn(err);
@@ -72,13 +71,13 @@ ClientCursor.prototype.more = function (fn) {
 };
 // Oh hey!  we found some networking!
 ClientCursor.prototype.requestMore = function (fn) {
-  console.log('cursor:requestMore');
+  debug('cursor:requestMore');
   process.nextTick(function () {
     fn(null, {});
   });
 };
 ClientCursor.prototype.hasNext = function () {
-  console.log('cursor:hasNext');
+  debug('cursor:hasNext');
   return true;
 };
 ClientCursor.prototype.objsLeftInBatch = function () {
@@ -97,40 +96,42 @@ ClientCursor.prototype.moreInCurrentBatch = function () {
 ClientCursor.prototype.readOnly = function () {
 };
 
-function MockCursor(){}
-util.inherits(MockCursor, ClientCursor);
-MockCursor.prototype.use = function(n, data){
-  var self = this;
+var fetchFromBackend = function(res){
   return function(fn){
     process.nextTick(function(){
-      self.consumed = false;
-
-      self.objsLeftInBatch = function(){
-        return self.consumed ? 0 : n;
-      };
-
-      self.hasNext = function(){
-        return function(fn){
-          return fn(null, self.consumed ? false : true);
-        };
-      };
-
-      self.next = function(){
-        return function(fn){
-          if(!self.consumed){
-            self.consumed = true;
-            return fn(null, data);
-          }
-          fn(new Error('DBClientCursor next() called but more() is false'));
-        };
-      };
-
-      self.toJSON = function(){
-        return {consumed: self.consumed};
-      };
-      fn(null, self);
+      fn(null, res);
     });
   };
+};
+
+function MockCursor(){}
+util.inherits(MockCursor, ClientCursor);
+MockCursor.prototype.use = function *(n, data){
+  var self = this;
+  self.consumed = false;
+  debug('waiting for backend');
+  var res = yield fetchFromBackend(data);
+  debug('got backend', res);
+  self.objsLeftInBatch = function(){
+    return self.consumed ? 0 : n;
+  };
+
+  self.hasNext = function *(){
+    return (self.consumed ? false : true);
+  };
+
+  self.next = function *(){
+    if(!self.consumed){
+      self.consumed = true;
+      return res;
+    }
+    throw new Error('DBClientCursor next() called but more() is false');
+  };
+
+  self.toJSON = function(){
+    return {consumed: self.consumed};
+  };
+  return self;
 };
 
 // And that's it for cpp land.  From here on out we're in JS land and in
@@ -166,8 +167,8 @@ var colStatsData = {
   "ok" : 1
 };
 
-Mongo.prototype.find = function(ns, query, fields, limit, skip, batchSize, options) {
-  console.log('mongo:find', ns, query, fields, limit, skip, batchSize, options);
+Mongo.prototype.find = function *(ns, query, fields, limit, skip, batchSize, options) {
+  debug('mongo:find', ns, query, fields, limit, skip, batchSize, options);
   // If in the shell we run
   // ```
   // db.getMongo().getDB('github').getCollection('users').stats();
@@ -224,14 +225,9 @@ Mongo.prototype.find = function(ns, query, fields, limit, skip, batchSize, optio
   //   "ok" : 1
   // }
   // ```
-  return function(fn){
-    // process.nextTick(function(){
-      new MockCursor().use(1, colStatsData)(function(err, ghColStatsCursor){
-        console.log('made cursor', ghColStatsCursor);
-        fn(null, ghColStatsCursor);
-      });
-    // });
-  };
+
+  // process.nextTick(function(){
+  return yield new MockCursor().use(1, colStatsData);
 };
 /* jshint ignore:start */
 Mongo.prototype.insert = function (ns, obj) {
@@ -269,34 +265,28 @@ DB.prototype.getSisterDB = DB.prototype.getSiblingDB = function (name) {
 DB.prototype.getName = function () {
   return this._name;
 };
-DB.prototype.stats = function (scale) {
+DB.prototype.stats = function *(scale) {
   var self = this;
-  console.log('db.stats called');
-  return co(function* (){
-    return yield self.runCommand({
-      dbstats: 1,
-      scale: scale
-    });
-  })();
+  debug('db.stats called');
+  return yield self.runCommand({
+    dbstats: 1,
+    scale: scale
+  });
 };
 DB.prototype.getCollection = function (name) {
   return new DBCollection(this._mongo, this, name, this._name + '.' + name);
 };
-DB.prototype._dbCommand = DB.prototype.runCommand = function (obj) {
+DB.prototype._dbCommand = DB.prototype.runCommand = function *(obj) {
   if (typeof obj === 'string') {
     var n = {};
     n[obj] = 1;
     obj = n;
   }
   var self = this;
-  return function(fn){
-    co(function* (){
-      console.log('db.runCommand ->', obj);
-      var res = yield self.getCollection('$cmd').findOne(obj);
-      console.log('db.runCommand -> ', 'got res', res);
-      fn(null, res);
-    })();
-  };
+  debug('db.runCommand ->', obj);
+  var res = yield self.getCollection('$cmd').findOne(obj);
+  debug('db.runCommand -> ', 'got res', res);
+  return res;
 };
 DB.prototype.adminCommand = function (obj) {
   if (this._name === 'admin')
@@ -314,10 +304,10 @@ DBCollection.prototype.getName = function () {
 };
 DBCollection.prototype.help = function () {
   var shortName = this.getName();
-  console.log('DBCollection help');
-  console.log('\tdb.' + shortName + '.find().help() - show DBCursor help');
-  console.log('\tdb.' + shortName + '.count()');
-  console.log('\tdb.' + shortName + '.copyTo(newColl) - duplicates collection by copying all documents to newColl; no indexes are copied.');
+  debug('DBCollection help');
+  debug('\tdb.' + shortName + '.find().help() - show DBCursor help');
+  debug('\tdb.' + shortName + '.count()');
+  debug('\tdb.' + shortName + '.copyTo(newColl) - duplicates collection by copying all documents to newColl; no indexes are copied.');
 };
 DBCollection.prototype.getFullName = function () {
   return this._fullName;
@@ -334,27 +324,23 @@ DBCollection.prototype.find = function (query, fields, limit, skip, batchSize, o
   var cursor = new DBQuery(self._mongo, self._db, self, self._fullName, self._massageObject(query), fields, limit, skip, batchSize, options || self.getQueryOptions());
   return cursor;
 };
-DBCollection.prototype.findOne = function (query, fields, options) {
+DBCollection.prototype.findOne = function *(query, fields, options) {
   var self = this;
-  return function(fn){
-    co(function* (){
-      console.log('findOne ->', 'get cursor');
-      var cursor = self.find(query, fields, -1, 0, 0, options);
-      console.log('findOne ->', 'got cursor', cursor.toJSON());
-      var hasNext = yield cursor.hasNext();
-      if (!hasNext){
-        console.log('findOne ->', 'cursor does not have next');
-        return null;
-      }
-      var ret = yield cursor.next();
-      console.log('findOne ->', 'returning!', ret);
-      // if (cursor.hasNext())
-      //   throw new Error('findOne has more than 1 result!');
-      // if (ret.$err)
-      //   throw new Error(JSON.stringify(ret));
-      fn(null, ret);
-    })();
-  };
+  debug('findOne ->', 'get cursor');
+  var cursor = self.find(query, fields, -1, 0, 0, options);
+  debug('findOne ->', 'got cursor', cursor.toJSON());
+  var hasNext = yield cursor.hasNext();
+  if (!hasNext){
+    debug('findOne ->', 'cursor does not have next');
+    return null;
+  }
+  var ret = yield cursor.next();
+  debug('findOne ->', 'returning!', ret);
+  // if (cursor.hasNext())
+  //   throw new Error('findOne has more than 1 result!');
+  // if (ret.$err)
+  //   throw new Error(JSON.stringify(ret));
+  return ret;
 };
 DBCollection.prototype._massageObject = function (q) {
   if (!q)
@@ -378,15 +364,12 @@ DBCollection.prototype.getQueryOptions = function () {
   options |= 4;
   return options;
 };
-DBCollection.prototype.stats = function (scale) {
-  console.log('DBCollection.stats called');
-  var self = this;
-  return function(fn){
-    self._db.runCommand({
-      collstats: this._shortName,
-      scale: scale
-    })(fn);
-  };
+DBCollection.prototype.stats = function *(scale) {
+  debug('DBCollection.stats called');
+  return yield this._db.runCommand({
+    collstats: this._shortName,
+    scale: scale
+  });
 };
 function DBQuery(mongo, db, collection, ns, query, fields, limit, skip, batchSize, options) {
   this._mongo = mongo;
@@ -404,63 +387,46 @@ function DBQuery(mongo, db, collection, ns, query, fields, limit, skip, batchSiz
   this._special = false;
   this._prettyShell = false;
 }
-DBQuery.prototype.hasNext = function () {
+DBQuery.prototype.hasNext = function *() {
   var self = this;
-  return function(fn){
-    self._exec()(function(err){
-      if(err) return fn(err);
-      if (self._limit > 0 && self._cursorSeen >= self._limit){
-        console.log('dbquery hasNext -> false');
-        return fn(null, function(){return false;});
-      }
-      self._cursor.hasNext()(function(err, o){
-        console.log('dbquery cursor hasNext -> ', o);
-        return fn(null, function(){return o;});
-      });
-    });
-  };
+  yield self._exec();
+  if (self._limit > 0 && self._cursorSeen >= self._limit){
+    debug('dbquery hasNext -> false');
+    return function(){return false;};
+  }
+  var o = yield self._cursor.hasNext();
+  debug('dbquery cursor hasNext -> ', o);
+  return function(){return o;};
 };
-DBQuery.prototype._exec = function () {
+DBQuery.prototype._exec = function *() {
   var self = this;
-  return function(fn){
-    console.log('_exec called');
-    if (self._cursor){
-      console.log('already have cursor');
-      return fn(null, self._cursor);
-    }
+  debug('_exec called');
+  if (self._cursor){
+    debug('already have cursor');
+    return self._cursor;
+  }
 
-    assert.eq(0, self._numReturned);
-    console.log('calling _mongo.find');
-    self._mongo.find(self._ns, self._query, self._fields, self._limit, self._skip, self._batchSize, self._options)(function(err, cur){
-      console.log('got new cursor', cur);
-      self._cursor = cur;
-      self._cursorSeen = 0;
-      return fn(err, self._cursor);
-    });
-  };
+  assert.eq(0, self._numReturned);
+  debug('calling _mongo.find');
+  var cur = yield self._mongo.find(self._ns, self._query, self._fields, self._limit, self._skip, self._batchSize, self._options);
+  debug('got new cursor', cur);
+  self._cursor = cur;
+  self._cursorSeen = 0;
+  return self._cursor;
 };
 
-DBQuery.prototype.next = function () {
+DBQuery.prototype.next = function *() {
   var self = this;
-  return function(fn){
-    self._exec()(function(err){
-      if(err) return fn(err);
+  yield self._exec();
 
-      self._cursor.hasNext()(function(err, o){
-        if(err) return fn(err);
+  var o = yield self._cursor.hasNext();
+  if(!o) throw new Error('error hasNext: ' + o);
+  self._cursorSeen++;
 
-        if(!o) return fn(new Error('error hasNext: ' + o));
-        self._cursorSeen++;
-
-        self._cursor.next()(function(err, ret){
-          if(err) return fn(err);
-          if (ret.$err) return fn(new Error('error: ' + JSON.stringify(ret)));
-          self._numReturned++;
-          return fn(null, ret);
-        });
-      });
-    });
-  };
+  var ret = yield self._cursor.next();
+  if (ret.$err) throw new Error('error: ' + JSON.stringify(ret));
+  self._numReturned++;
+  return ret;
 };
 
 DBQuery.prototype.toJSON = function () {
@@ -469,8 +435,10 @@ DBQuery.prototype.toJSON = function () {
 
 var _mongo = new Mongo();
 var db = _mongo.getDB('github');
+console.log('testing fixtures...');
 assert.deepEqual(yield db.getCollection('users').stats(), colStatsData);
-console.log('and again?');
-var chunks = yield db.getCollection('users').findOne();
-console.log('chunks are', chunks);
+
+console.log('yay!  some more examples:');
+console.log('calling findOne   ', yield db.getCollection('users').findOne());
+console.log('calling runCommand', yield db.runCommand({collStats: 'users'}));
 })();
