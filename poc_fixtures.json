@@ -1,0 +1,20 @@
+{
+  "ns=github.%24cmd&query=%7B%22collstats%22%3A%22users%22%7D&fields=&limit=-1&skip=0&batchSize=0&options=4": {
+    "ns": "github.users",
+    "count": 29,
+    "size": 2160,
+    "avgObjSize": 74,
+    "storageSize": 8192,
+    "numExtents": 1,
+    "nindexes": 1,
+    "lastExtentSize": 8192,
+    "paddingFactor": 1,
+    "systemFlags": 1,
+    "userFlags": 1,
+    "totalIndexSize": 8176,
+    "indexSizes": {
+      "_id_": 8176
+    },
+    "ok": 1
+  }
+}

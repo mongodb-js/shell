@@ -6,7 +6,9 @@
 // that strategy to make this work.
 var assert = require('assert'),
   util = require('util'),
-  debug = require('debug')('mongodb');
+  fs = require('fs'),
+  debug = require('debug')('mongodb'),
+  qs = require('querystring');
 
 require('co')(function *(){
 assert.eq = assert.equal;
@@ -96,22 +98,20 @@ ClientCursor.prototype.moreInCurrentBatch = function () {
 ClientCursor.prototype.readOnly = function () {
 };
 
-var fetchFromBackend = function(res){
-  return function(fn){
-    process.nextTick(function(){
-      fn(null, res);
-    });
-  };
-};
+// var fetchFromBackend = function(res){
+//   return function(fn){
+//     process.nextTick(function(){
+//       fn(null, res);
+//     });
+//   };
+// };
 
 function MockCursor(){}
 util.inherits(MockCursor, ClientCursor);
-MockCursor.prototype.use = function *(n, data){
+MockCursor.prototype.use = function *(n, res){
   var self = this;
   self.consumed = false;
-  debug('waiting for backend');
-  var res = yield fetchFromBackend(data);
-  debug('got backend', res);
+
   self.objsLeftInBatch = function(){
     return self.consumed ? 0 : n;
   };
@@ -148,86 +148,29 @@ function Mongo(host) {
   this.host = host;
 }
 
-var colStatsData = {
-  "ns" : "github.users",
-  "count" : 29,
-  "size" : 2160,
-  "avgObjSize" : 74,
-  "storageSize" : 8192,
-  "numExtents" : 1,
-  "nindexes" : 1,
-  "lastExtentSize" : 8192,
-  "paddingFactor" : 1,
-  "systemFlags" : 1,
-  "userFlags" : 1,
-  "totalIndexSize" : 8176,
-  "indexSizes" : {
-    "_id_" : 8176
-  },
-  "ok" : 1
+var read = function(src){
+  return function(fn){
+    fs.readFile(src, 'utf-8', function(err, data){
+      if(err) return fn(err);
+      return fn(null, JSON.parse(data));
+    });
+  };
 };
 
 Mongo.prototype.find = function *(ns, query, fields, limit, skip, batchSize, options) {
-  debug('mongo:find', ns, query, fields, limit, skip, batchSize, options);
-  // If in the shell we run
-  // ```
-  // db.getMongo().getDB('github').getCollection('users').stats();
-  // ```
-  //
-  // `Mongo.prototype.find` gets the args:
-  // ```
-  // github.$cmd { collstats: 'users', scale: undefined } undefined -1 0 0 4
-  // ```
-  // So we can just run this directly:
-  // ```
-  // db.getMongo().find('github.$cmd', { collstats: 'users', scale: undefined }, undefined, -1, 0, 0, 4)
-  // ```
-  //
-  // Which gives us the `ClientCursor` instance:
-  // ```
-  // {
-  //   "next" : function next() { [native code] },
-  //   "hasNext" : function hasNext() { [native code] },
-  //   "objsLeftInBatch" : function objsLeftInBatch() { [native code] },
-  //   "readOnly" : function readOnly() { [native code] }
-  // }
-  // ```
-  // `cur.readOnly()` is a setter only operation that returns:
-  // ```
-  // {
-  //   "_ro" : true,
-  //   "next" : function next() { [native code] },
-  //   "hasNext" : function hasNext() { [native code] },
-  //   "objsLeftInBatch" : function objsLeftInBatch() { [native code] },
-  //   "readOnly" : function readOnly() { [native code] }
-  // }
-  // > cur.objsLeftInBatch()
-  // 1
-  // > cur.hasNext()
-  // true
-  // > cur.next()
-  // {
-  //   "ns" : "github.users",
-  //   "count" : 29,
-  //   "size" : 2160,
-  //   "avgObjSize" : 74,
-  //   "storageSize" : 8192,
-  //   "numExtents" : 1,
-  //   "nindexes" : 1,
-  //   "lastExtentSize" : 8192,
-  //   "paddingFactor" : 1,
-  //   "systemFlags" : 1,
-  //   "userFlags" : 1,
-  //   "totalIndexSize" : 8176,
-  //   "indexSizes" : {
-  //     "_id_" : 8176
-  //   },
-  //   "ok" : 1
-  // }
-  // ```
-
-  // process.nextTick(function(){
-  return yield new MockCursor().use(1, colStatsData);
+  var req = {
+      ns: ns,
+      query: JSON.stringify(query),
+      fields: JSON.stringify(fields),
+      limit: limit,
+      skip: skip,
+      batchSize: batchSize,
+      options: options
+    },
+    id = require('crypto').createHash('sha1').update(JSON.stringify(req)).digest('hex');
+  debug('mongo:find', req, id, qs.stringify(req));
+  var data = yield read('./poc_fixtures.json');
+  return yield new MockCursor().use(1, data[qs.stringify(req)]);
 };
 /* jshint ignore:start */
 Mongo.prototype.insert = function (ns, obj) {
@@ -436,9 +379,26 @@ DBQuery.prototype.toJSON = function () {
 var _mongo = new Mongo();
 var db = _mongo.getDB('github');
 console.log('testing fixtures...');
-assert.deepEqual(yield db.getCollection('users').stats(), colStatsData);
+assert.deepEqual(yield db.getCollection('users').stats(), {
+  "ns" : "github.users",
+  "count" : 29,
+  "size" : 2160,
+  "avgObjSize" : 74,
+  "storageSize" : 8192,
+  "numExtents" : 1,
+  "nindexes" : 1,
+  "lastExtentSize" : 8192,
+  "paddingFactor" : 1,
+  "systemFlags" : 1,
+  "userFlags" : 1,
+  "totalIndexSize" : 8176,
+  "indexSizes" : {
+    "_id_" : 8176
+  },
+  "ok" : 1
+});
 
-console.log('yay!  some more examples:');
-console.log('calling findOne   ', yield db.getCollection('users').findOne());
-console.log('calling runCommand', yield db.runCommand({collStats: 'users'}));
+// console.log('yay!  some more examples:');
+// console.log('calling findOne   ', yield db.getCollection('users').findOne());
+// console.log('calling runCommand', yield db.runCommand({collStats: 'users'}));
 })();
