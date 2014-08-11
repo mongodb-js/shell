@@ -3,12 +3,15 @@
 var esformatter = require('esformatter'),
   fs = require('fs'),
   docopt = require('docopt').docopt,
-  pkg = require(__dirname + '/../package.json');
+  pkg = require(__dirname + '/../package.json'),
+  glob = require('glob');
 
 var argv = docopt(fs.readFileSync(__dirname + '/format.docopt', 'utf-8'), {version: pkg.version});
 
-var src = argv['<src>'],
-  contents = fs.readFileSync(src, 'utf-8'),
-  res = esformatter.format(contents);
-
-fs.writeFileSync(src, res);
+glob(argv['<src>'], function (err, files) {
+  files.map(function(src){
+    var contents = fs.readFileSync(src, 'utf-8'),
+      res = esformatter.format(contents);
+    fs.writeFileSync(src, res);
+  });
+});
