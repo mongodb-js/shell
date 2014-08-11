@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 var esformatter = require('esformatter'),
+  spawn = require('child_process').spaw,
   fs = require('fs'),
   docopt = require('docopt').docopt,
   pkg = require(__dirname + '/../package.json'),
@@ -13,5 +14,6 @@ glob(argv['<src>'], function (err, files) {
     var contents = fs.readFileSync(src, 'utf-8'),
       res = esformatter.format(contents);
     fs.writeFileSync(src, res);
+    spawn('./node_modules/.bin/jsfmt -w ' + src);
   });
 });
