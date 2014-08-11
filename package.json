@@ -5,8 +5,15 @@
   "scripts": {
     "test": "mocha"
   },
+  "bin": {
+    "mongodb-format": "bin/format.js"
+  },
   "devDependencies": {
     "coffee-script": "^1.7.1",
     "mocha": "^1.17.1"
+  },
+  "dependencies": {
+    "docopt": "^0.4.0",
+    "esformatter": "^0.4.1"
   }
 }
