@@ -1,4 +1,3 @@
-require('co')(function *(){
 var debug = require('debug')('mongodbjs'),
   vm = require('vm'),
   fs = require('fs');
@@ -18,7 +17,6 @@ function run(code, context, filename, fn){
 
   try {
     result = script.runInContext(context);
-
     debug('Got result', result);
   }
   catch (err) {
@@ -57,5 +55,3 @@ module.exports.script = function(src, opts, fn){
 };
 
 module.exports.createRuntime = require('./lib');
-
-})();
