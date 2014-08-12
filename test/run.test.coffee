@@ -1,7 +1,7 @@
 mongodb = require '../'
 
 describe 'Run', ->
-  it.skip 'should run hello', (done) ->
+  it 'should run hello', (done) ->
     mongodb.script "#{__dirname}/fixtures/hello.js", (err, res) ->
       return done(err) if err?
       console.log 'result', res

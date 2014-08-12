@@ -1,3 +1,4 @@
+require('co')(function *(){
 var debug = require('debug')('mongodbjs'),
   vm = require('vm'),
   fs = require('fs');
@@ -43,19 +44,7 @@ module.exports = function(code, opts, fn){
   }
 
   opts.filename = opts.filename || '<main>';
-
-  // var DB = require('./lib/db'),
-  //   Mongo = require('./lib/mongo'),
-  //   mongo = new Mongo();
-
-  var ctx = vm.createContext({
-    // db: new DB(mongo, 'test'),
-    print: function(){
-      var args = Array.prototype.slice.call(arguments, 0);
-      args.unshift('<'+opts.filename+'>');
-      console.log.apply(console, args);
-    },
-  });
+  var ctx = vm.createContext(require('./lib'));
   run(code, ctx, '<main>', fn);
 };
 
@@ -66,6 +55,8 @@ module.exports.script = function(src, opts, fn){
     module.exports(code, opts, fn);
   });
 };
+
+module.exports.runtime = require('./lib');
 
 process.__mongo__ = {
   find: function (ns, query, fields, limit, skip, batchSize, options){
@@ -85,3 +76,4 @@ process.__mongo__ = {
     throw new Error('not implemented');
   },
 };
+})();
