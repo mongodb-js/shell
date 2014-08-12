@@ -1,0 +1,9 @@
+mongodb-format
+Format all code to be the same.
+
+Usage:
+  mongodb-format <src>
+  mongodb-format -h | --help
+
+Options:
+  -h --help     Show this screen.

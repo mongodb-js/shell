@@ -11,6 +11,7 @@
     "after",
     "afterEach"
   ],
+  "eqeqeq": true,
   "unused": true,
   "trailing": true,
   "boss": true,

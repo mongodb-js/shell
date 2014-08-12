@@ -1,12 +1,77 @@
-module.exports = {
-  DBCollection: require('./lib/collection'),
-  DB: require('./lib/db'),
-  Mongo: require('./lib/mongo'),
-  DBQuery: require('./lib/query'),
-  DBCommandCursor: require('./lib/query').DBCommandCursor,
+var debug = require('debug')('mongodbjs'),
+  vm = require('vm'),
+  fs = require('fs');
+
+function run(code, context, filename, fn){
+  debug('running', code, context, filename);
+  var err, result, script;
+  try {
+    script = vm.createScript(code, {
+      filename: filename,
+      displayErrors: false
+    });
+  } catch (err) {
+    debug('parse error %j', code, err);
+    return fn(err);
+  }
+
+  try {
+    result = script.runInContext(context);
+
+    debug('Got result', result);
+  }
+  catch (err) {
+    debug('execution error');
+    console.error('Error', err.stack);
+
+    if (err && process.domain) {
+      debug('not recoverable, send to domain');
+      process.domain.emit('error', err);
+      process.domain.exit();
+      return;
+    }
+  }
+
+  fn(err, result);
+}
+
+module.exports = function(code, opts, fn){
+  opts = opts || {};
+  if(typeof opts === 'function'){
+    fn = opts;
+    opts = {};
+  }
+
+  opts.filename = opts.filename || '<main>';
+
+  var DB = require('./lib/db'),
+    Mongo = require('./lib/mongo'),
+    mongo = new Mongo();
+
+  var ctx = vm.createContext({
+    db: new DB(mongo, 'test'),
+    print: function(){
+      var args = Array.prototype.slice.call(arguments, 0);
+      args.unshift('<'+opts.filename+'>');
+      console.log.apply(console, args);
+    },
+  });
+  run(code, ctx, '<main>', fn);
 };
 
-var debug = require('debug')('mongodbjs');
+module.exports.script = function(src, opts, fn){
+  fs.readFile(src, 'utf-8', function(err, code){
+    if(err) return fn(err);
+    opts.filename = src;
+    module.exports(code, opts, fn);
+  });
+};
+
+module.exports.DBCollection = require('./lib/collection');
+module.exports.DB = require('./lib/db');
+module.exports.Mongo = require('./lib/mongo');
+module.exports.DBQuery = require('./lib/query');
+module.exports.DBCommandCursor = require('./lib/query').DBCommandCursor;
 
 process.__mongo__ = {
   find: function (ns, query, fields, limit, skip, batchSize, options){
