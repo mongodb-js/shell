@@ -167,6 +167,15 @@ Any methods that call the above need the `function *(` rewrite, as well as a `yi
 var res = yield db.runCommand({...});
 ```
 
+- ` == ` -> ` === `
+- ` != ` -> ` !== `
+- `this._dbCommand` -> ` yield this._dbCommand`
+- `this.runCommand` -> ` yield this.runCommand`
+- `this._db.runCommand` -> ` yield this._db.runCommand`
+
+Making all of the string replacements to add yields and then running
+jshint will raise an error
+
 ## Todo
 
 - [x] lots and lots of POC's to figure out how this could work
