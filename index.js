@@ -44,12 +44,12 @@ module.exports = function(code, opts, fn){
 
   opts.filename = opts.filename || '<main>';
 
-  var DB = require('./lib/db'),
-    Mongo = require('./lib/mongo'),
-    mongo = new Mongo();
+  // var DB = require('./lib/db'),
+  //   Mongo = require('./lib/mongo'),
+  //   mongo = new Mongo();
 
   var ctx = vm.createContext({
-    db: new DB(mongo, 'test'),
+    // db: new DB(mongo, 'test'),
     print: function(){
       var args = Array.prototype.slice.call(arguments, 0);
       args.unshift('<'+opts.filename+'>');
@@ -66,12 +66,6 @@ module.exports.script = function(src, opts, fn){
     module.exports(code, opts, fn);
   });
 };
-
-module.exports.DBCollection = require('./lib/collection');
-module.exports.DB = require('./lib/db');
-module.exports.Mongo = require('./lib/mongo');
-module.exports.DBQuery = require('./lib/query');
-module.exports.DBCommandCursor = require('./lib/query').DBCommandCursor;
 
 process.__mongo__ = {
   find: function (ns, query, fields, limit, skip, batchSize, options){
