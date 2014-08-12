@@ -184,9 +184,9 @@ jshint will raise an error
 - [x] will generators actually work? (yep see poc.js)
 - [x] `dbclientcursor` in js
 - [x] `mongo` methods in js
-- [ ] manually transform lib js to work with async & commonjs
-- [ ] provide mongo context to vm
-- [ ] provide stub shell utils context to vm
+- [x] manually transform lib js to work with async & commonjs
+- [x] provide mongo context to vm
+- [x] provide stub shell utils context to vm
 - [ ] auto transform -> commonjs script
 - [ ] auto transform -> add `*`'s and yields
 - [ ] `db.<collection>` access: go with [noSuchmethod][noSuchMethod] or rewrite rule that transforms into `db.getCollection('<collection>')`

@@ -1,5 +1,7 @@
 var assert = require('assert'),
-  runtime = require('../').runtime;
+  createRuntime = require('../').createRuntime;
+
+var runtime = createRuntime('localhost:27017', 'test');
 
 assert(runtime.print, 'Missing print');
 assert(runtime.load, 'Missing load');
