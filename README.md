@@ -25,7 +25,7 @@ mongodb_js.run("print('hello'); print(db.users.stats();)", 'localhost:27017')
 
 Well, it's not really documented anywhere right now, but after a bit of
 digging, here's what I've found.  You also might want to read the
-[V8 Embedder's Guide](https://developers.google.com/v8/embed) as a prerequisite.
+[V8 Embedder's Guide](https://developers.google.com/v8/embed) or [node-embed](https://github.com/hoonto/node-embed) as a prerequisite.
 
 Kernel CPP functions are exposed to javascript via V8 scope injection,
 primarily through `injectNative()` and `injectV8Method()`.  If you've
