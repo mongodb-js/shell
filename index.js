@@ -22,18 +22,19 @@ function run(code, context, filename, fn){
   catch (err) {
     debug('execution error');
     console.error('Error', err.stack);
-    return fn(err, null);
 
-    // if (err && process.domain) {
-    //   debug('not recoverable, send to domain');
-    //   process.domain.emit('error', err);
-    //   process.domain.exit();
-    //   return;
-    // }
+    if (err && process.domain) {
+      debug('not recoverable, send to domain');
+      process.domain.emit('error', err);
+      process.domain.exit();
+      return;
+    }
   }
 
   fn(err, result);
 }
+
+var dbMethods = new RegExp('db\\.(?!' + Object.keys(require('./lib/db').prototype).join('|') + ').+\\(?', 'g');
 
 module.exports = function(code, opts, fn){
   opts = opts || {};
@@ -44,7 +45,19 @@ module.exports = function(code, opts, fn){
 
   opts.filename = opts.filename || '<main>';
   var ctx = vm.createContext(require('./lib')('localhost:27017', 'test'));
-  run(code, ctx, '<main>', fn);
+  module.exports.prepare(code, function(err, _code){
+    run(_code, ctx, '<main>', fn);
+  });
+};
+
+module.exports.prepare = function(code, fn){
+  var safeCode = code.replace(dbMethods, function(prefix, offset, string){
+    return string.replace(/db\.([a-zA-Z0-9\_]+)/, 'db.getCollection(\'$1\')');
+  });
+  // @todo: insert yields...
+  // @todo: parse and transform with regenerator
+  // console.log('safe code', safeCode);
+  fn(null, safeCode);
 };
 
 module.exports.script = function(src, opts, fn){

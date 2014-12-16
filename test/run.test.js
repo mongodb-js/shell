@@ -14,7 +14,7 @@ describe('Run', function(){
       done();
     });
   });
-  it.skip('@todo: need to do es6 proxy hack for collection dot access.  should run a real test script', function(done){
+  it('@todo: need to do es6 proxy hack for collection dot access.  should run a real test script', function(done){
     mongodb.script(__dirname + "/fixtures/jstests-all.js", function(err){
       assert.ifError(err);
       done();
