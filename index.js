@@ -22,13 +22,14 @@ function run(code, context, filename, fn){
   catch (err) {
     debug('execution error');
     console.error('Error', err.stack);
+    return fn(err, null);
 
-    if (err && process.domain) {
-      debug('not recoverable, send to domain');
-      process.domain.emit('error', err);
-      process.domain.exit();
-      return;
-    }
+    // if (err && process.domain) {
+    //   debug('not recoverable, send to domain');
+    //   process.domain.emit('error', err);
+    //   process.domain.exit();
+    //   return;
+    // }
   }
 
   fn(err, result);
@@ -42,7 +43,7 @@ module.exports = function(code, opts, fn){
   }
 
   opts.filename = opts.filename || '<main>';
-  var ctx = vm.createContext(require('./lib'));
+  var ctx = vm.createContext(require('./lib')('localhost:27017', 'test'));
   run(code, ctx, '<main>', fn);
 };
 
@@ -54,4 +55,4 @@ module.exports.script = function(src, opts, fn){
   });
 };
 
-module.exports.createRuntime = require('./lib');
+module.exports.createContext = require('./lib');
