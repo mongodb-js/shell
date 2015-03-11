@@ -29,7 +29,7 @@
     "start": "gulp",
     "deploy": "gulp deploy",
     "check": "gulp check",
-    "test": "echo \"Error: @todo\" && exit 1"
+    "test": "mocha"
   },
   "precommit": [
     "check"
@@ -40,9 +40,6 @@
     "url": "git://github.com/mongodb-js/mongodb-js.github.io.git"
   },
   "dependencies": {
-    "JSONStream": "^0.10.0",
-    "amp-defaults": "^1.0.1",
-    "amp-extend": "^1.0.1",
     "amp-result": "^1.1.0",
     "ampersand-collection": "^1.4.1",
     "ampersand-collection-filterable": "0.0.1",
@@ -55,17 +52,15 @@
     "bootstrap": "https://github.com/twbs/bootstrap/archive/v3.3.2.tar.gz",
     "debug": "^2.0.0",
     "domready": "^1.0.7",
-    "event-stream": "^3.2.2",
     "font-awesome": "https://github.com/FortAwesome/Font-Awesome/archive/v4.3.0.tar.gz",
     "jade": "^1.9.2",
     "jquery": "^2.1.1",
     "moment": "^2.8.2",
-    "mongodb-extended-json": "^1.1.2",
     "numeral": "^1.5.3",
     "octicons": "https://github.com/github/octicons/archive/v2.2.0.tar.gz",
+    "phantomjs-polyfill": "0.0.1",
     "qs": "^2.2.4",
-    "underscore": "^1.6.0",
-    "xhr": "^2.0.0"
+    "underscore": "^1.6.0"
   },
   "devDependencies": {
     "browserify": "^9.0.3",
@@ -89,7 +84,10 @@
     "less-plugin-clean-css": "^1.4.0",
     "marked": "^0.3.2",
     "merge-stream": "^0.1.7",
+    "mocha": "^2.2.1",
+    "nightmare": "^1.7.0",
     "node-notifier": "^4.0.0",
+    "phantomjs": "~1.9.15",
     "pre-commit": "^1.0.6",
     "pretty-hrtime": "^1.0.0",
     "vinyl-buffer": "^1.0.0",

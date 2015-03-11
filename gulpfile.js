@@ -6,13 +6,13 @@ var browserify = require('browserify'),
   source = require('vinyl-source-stream'),
   buffer = require('vinyl-buffer'),
   gulp = require('gulp'),
+  webserver = require('gulp-webserver'),
   gutil = require('gulp-util'),
   less = require('gulp-less'),
   jade = require('gulp-jade'),
   deploy = require('gulp-gh-pages'),
   getBranch = require('git-branch'),
   uglify = require('gulp-uglify'),
-  webserver = require('gulp-webserver'),
   sourcemaps = require('gulp-sourcemaps'),
   CleanCSS = require('less-plugin-clean-css'),
   clui = require('clui'),
@@ -102,6 +102,14 @@ gulp.task('serve', function() {
       open: true,
       directoryListing: false,
       livereload: true
+    }));
+});
+
+gulp.task('testserver', function() {
+  return gulp.src('dist')
+    .pipe(webserver({
+      host: 'localhost',
+      port: 3001
     }));
 });
 
