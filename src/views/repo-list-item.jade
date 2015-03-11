@@ -1,0 +1,29 @@
+a(data-hook='url', target='_blank').list-group-item
+  .media
+    .media-left
+      img.media-object(data-hook='avatar', height=44, width=44)
+    .media-body(style='width: 100%')
+      h3(style='margin-top: 0;')
+        span(data-hook='name')
+      ul.list-unstyled.list-inline.pull-right
+        li(style='width: 90px;')
+          span.octicon.octicon-star(style='padding-right: 4px;')
+          span(data-hook='stargazers')
+        li(style='width: 90px;')
+          span.octicon.octicon-issue-opened(style='padding-right: 4px;')
+          span(data-hook='open_issues')
+
+        li(style='width: 90px;')
+          img(data-hook='travis_badge_url')
+
+        li
+          span(data-hook='language')
+        li
+          span(data-hook='category')
+        li
+          span(data-hook='size')
+        li
+          span(data-hook='last_activity_at_string')
+        li
+          span(data-hook='created_at_string')
+      p(data-hook='description')

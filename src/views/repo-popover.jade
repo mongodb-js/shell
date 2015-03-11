@@ -1,0 +1,24 @@
+p #{description}
+
+table.table.table-condensed(style='margin-bottom: 0;')
+  tbody
+    tr
+      th(scope='row', style='border-top: 0;')
+        span.octicon.octicon-star(style='padding-right: 4px;')
+        | Stars
+      td(style='border-top: 0;') #{stargazers}
+    tr
+      th(scope='row', style='border-top: 0;')
+        span.octicon.octicon-issue-opened(style='padding-right: 4px;')
+        | Issues
+      td(style='border-top: 0;') #{open_issues}
+    tr
+      th(scope='row', style='border-top: 0;')
+        span.octicon.octicon-calendar(style='padding-right: 4px;')
+        | Active
+      td(style='border-top: 0;') #{last_activity_at_string}
+    tr
+      th(scope='row', style='border-top: 0;')
+        span.octicon.octicon-code(style='padding-right: 4px;')
+        | Language
+      td(style='border-top: 0;') #{language}

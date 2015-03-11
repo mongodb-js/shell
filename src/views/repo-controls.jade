@@ -1,0 +1,15 @@
+form.form-inline
+  .form-group
+    label(style='font-weight: normal;') Sort By&nbsp;&nbsp;
+    select(data-hook='layout', style='height: 24px;').form-control
+      option(value='stargazers_count') Most Popular
+      option(value='created_at') Newest
+      option(value='last_activity_at') Recently Active
+      option(value='open_issues_count') Open Issues
+      option(value='size') Codebase Size
+  .form-group(style='padding-left: 10px;')
+    .btn-group.btn-group-xs
+      a.btn(data-hook='grid')
+        i.fa.fa-fw.fa-th
+      a.btn(data-hook='list')
+        i.fa.fa-fw.fa-list

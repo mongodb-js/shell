@@ -1,0 +1,36 @@
+.page
+  .content
+    .panel
+      .panel-heading
+        .pull-right(style='margin-top: 4px'): div(data-hook='repo-controls')
+        .panel-title
+          h4(style='margin-top: 7px;margin-bottom: 7px;') Our Repositories
+          .clearfix
+      .panel-container(data-hook='repos-container')
+      .clearfix
+
+  .sidebar
+    div(style='padding: 11px 0px; margin-bottom: 10px;font-weight: 600;border-bottom: 1px solid #d9deeb;')
+      img(data-hook='org_avatar_url', style='height: 48px;padding-left: 5px;padding-right: 5px;')
+      span(data-hook='org_title')
+
+    //- @todo: make facets load dynamically from config if we decide to keep them
+    //- .facet-name Language
+    //- - languages = ['C','C++','CSS','Haskell','Java','JS','PHP','Python','Ruby','Scala']
+    //- ul.facet-value-list
+    //-   for language in languages
+    //-     li.facet-value: label
+    //-       input(type="checkbox", data-hook='language', value=language)
+    //-       | #{language}
+
+    //- - categories = ['Database', 'Docs', 'Driver', 'Hadoop', 'n/a']
+    //- .facet-name Category
+    //- ul.facet-value-list
+    //-   for category in categories
+    //-     li.facet-value: label
+    //-       input(type="checkbox", data-hook='category', value=category)
+    //-       | #{category}
+
+    //- h4(style='padding-left: 10px;opacity: 0.6;') Get in touch
+    //- a(style='padding-left: 15px;') mongodb-dev group
+  .sidebar-bg
