@@ -1,0 +1,13 @@
+---
+box: wercker/nodejs
+build:
+  steps:
+    - npm-install
+    -
+      script:
+        code: "npm run check"
+        name: check
+    -
+      script:
+        code: "npm run-script test"
+        name: test
