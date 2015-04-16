@@ -142,7 +142,7 @@ scope.injectNative( "mkdir" , mkdir );
 
 ### bonus: mapreduce
 
-[db/commands/mr.cpp](https://github.com/mongodb/mongo/blob/master/src/mongo/d\b/commands/mr.cpp)
+[db/commands/mr.cpp](https://github.com/mongodb/mongo/blob/master/src/mongo/db/commands/mr.cpp)
 
 ```cpp
 _scope->injectNative("_bailFromJS", _bailFromJS, this);
@@ -150,7 +150,15 @@ _scope->injectNative( "emit" , fast_emit, this );
 _scope->injectNative("_nativeToTemp", _nativeToTemp, this);
 ```
 
-##
+### double bonus: scripting utils
+
+[scripting/utils.cpp](https://github.com/mongodb/mongo/blob/master/src/mongo/scripting/utils.cpp)
+
+```cpp
+scope.injectNative( "hex_md5" , native_hex_md5 );
+scope.injectNative( "version" , native_version );
+scope.injectNative( "sleep" , native_sleep );
+```
 
 ## Notes
 
