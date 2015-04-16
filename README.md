@@ -44,6 +44,66 @@ same thing and you can think of these injection methods as equivalent to
 is a good place to start in looking at all of this.  V8Scope provides
 the bindings for all non-standard JS types such as Long, UUID, Hex, etc.
 
+[`print`, `version`, `gc`, and cpu profiling](https://github.com/mongodb/mongo/blob/master/src/mongo/scripting/engine_v8.cpp#L550-L555)
+
+```cpp
+injectV8Function("print", Print);
+injectV8Function("version", Version);  // TODO: remove
+injectV8Function("gc", GCV8);
+// injectV8Function("startCpuProfiler", startCpuProfiler);
+// injectV8Function("stopCpuProfiler", stopCpuProfiler);
+// injectV8Function("getCpuProfile", getCpuProfile);
+```
+
+[`load`](https://github.com/mongodb/mongo/blob/master/src/mongo/scripting/engine_v8.cpp#L1259-L1260)
+```cpp
+// install 'load' helper function
+injectV8Function("load", load);
+```
+
+[`Mongo` constructor](https://github.com/mongodb/mongo/blob/master/src/mongo/scripting/engine_v8.cpp#L1234)
+```cpp
+injectV8Function("Mongo", MongoFT(), _global);
+```
+
+[constructors for `DB`, `DBQuery`, and `DBCollection`](https://github.com/mongodb/mongo/blob/master/src/mongo/scripting/engine_v8.cpp#L1281-L1283)
+
+```cpp
+injectV8Function("DB", DBFT(), _global);
+injectV8Function("DBQuery", DBQueryFT(), _global);
+injectV8Function("DBCollection", DBCollectionFT(), _global);
+```
+
+[bson stuff](https://github.com/mongodb/mongo/blob/master/src/mongo/scripting/engine_v8.cpp#L1291-L1316)
+```cpp
+_ObjectIdFT  = FTPtr::New(injectV8Function("ObjectId", objectIdInit));
+_DBRefFT     = FTPtr::New(injectV8Function("DBRef", dbRefInit));
+_DBPointerFT = FTPtr::New(injectV8Function("DBPointer", dbPointerInit));
+
+_BinDataFT    = FTPtr::New(getBinDataFunctionTemplate(this));
+_NumberLongFT = FTPtr::New(getNumberLongFunctionTemplate(this));
+_NumberIntFT  = FTPtr::New(getNumberIntFunctionTemplate(this));
+_TimestampFT  = FTPtr::New(getTimestampFunctionTemplate(this));
+_MinKeyFT     = FTPtr::New(getMinKeyFunctionTemplate(this));
+_MaxKeyFT     = FTPtr::New(getMaxKeyFunctionTemplate(this));
+
+injectV8Function("BinData", BinDataFT(), _global);
+injectV8Function("NumberLong", NumberLongFT(), _global);
+injectV8Function("NumberInt", NumberIntFT(), _global);
+injectV8Function("Timestamp", TimestampFT(), _global);
+
+// These are instances created from the functions, not the functions themselves
+_global->ForceSet(strLitToV8("MinKey"), MinKeyFT()->GetFunction()->NewInstance());
+_global->ForceSet(strLitToV8("MaxKey"), MaxKeyFT()->GetFunction()->NewInstance());
+
+// These all create BinData objects so we don't need to hold on to them.
+injectV8Function("UUID", uuidInit);
+injectV8Function("MD5", md5Init);
+injectV8Function("HexData", hexDataInit);
+
+injectV8Function("bsonWoCompare", bsonWoCompare);
+```
+
 ### cursor
 
 [scripting/v8_db.cpp](https://github.com/mongodb/mongo/blob/master/src/mongo/scripting/v8_db.cpp)
