@@ -9,7 +9,7 @@
     "mongodb-format": "bin/format.js"
   },
   "devDependencies": {
-    "coffee-script": "^1.7.1",
+    "coffee-script": "^1.12.5",
     "mocha": "^3.1.2"
   },
   "dependencies": {
